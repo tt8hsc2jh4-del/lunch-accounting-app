@@ -68,3 +68,11 @@
 .member-picker-actions button{padding:5px 8px;font-size:11px;white-space:nowrap}
 .member-picker-actions .primary-button:disabled{opacity:.55;cursor:default}
 .member-picker-item>span{min-width:0;overflow-wrap:anywhere}
+
+
+/* Member directory controls: register a new name above the saved roster dropdown */
+.member-picker-add{margin:0 0 8px;padding:0;border-top:0}
+.member-picker-trigger{flex-wrap:nowrap;white-space:nowrap}
+.member-picker-trigger>span{white-space:nowrap}
+.member-picker-count{margin-left:auto;flex-shrink:0}
+.member-picker-chevron{flex-shrink:0}
