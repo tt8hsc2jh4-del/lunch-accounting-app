@@ -82,21 +82,6 @@ export default function Home() {
     setAlert('新しいイベントを作成しました。');
   }
 
-  async function addEvent() {
-    const name = newEventName.trim();
-    if (!supabase || !name) return;
-    const existing = events.find(item => item.name.toLocaleLowerCase() === name.toLocaleLowerCase());
-    if (existing) { setEventId(existing.id); setNewEventName(''); setEventDropdownOpen(false); setAlert('同じ名前のイベントがあるため、既存イベントに切り替えました。'); return; }
-    const { data, error: e } = await supabase.from('lunch_events').insert({ name }).select('id,name').single();
-    if (e || !data) { setError(e?.message ?? 'イベントを作成できませんでした。'); return; }
-    setEvents(current => [data as EventItem, ...current]);
-    setNewEventName('');
-    setDay(1); setMenuDay(1); setFilter('all'); setConfirm(null);
-    setEventId(data.id);
-    setEventDropdownOpen(false);
-    setAlert('新しいイベントを作成しました。');
-  }
-
   useEffect(() => {
     if (!alert) return;
     const timer = window.setTimeout(() => setAlert(''), 2000);
