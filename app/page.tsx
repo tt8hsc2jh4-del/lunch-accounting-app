@@ -76,6 +76,7 @@ export default function Home() {
     setEvents(current => [data as EventItem, ...current]);
     setNewEventName('');
     setDay(1); setMenuDay(1); setFilter('all'); setConfirm(null);
+    setLoading(true);
     setEventId(data.id);
     setEventDropdownOpen(false);
     setAlert('新しいイベントを作成しました。');
@@ -105,6 +106,7 @@ export default function Home() {
     const client = supabase;
     if (!client) return;
     const channel = client.channel('lunch-accounting-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_events' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_participants' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_member_directory' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_menus' }, () => { void load(); })
@@ -207,7 +209,6 @@ export default function Home() {
     if (current && current.name !== personDraft.trim()) {
       const { error: de } = await supabase.from('lunch_member_directory').upsert({ name: personDraft.trim() }, { onConflict: 'name' });
       if (de) { setError(de.message); return; }
-      await supabase.from('lunch_member_directory').delete().eq('name', current.name);
     }
     setEditingPerson(null); await load();
   }
@@ -266,7 +267,7 @@ export default function Home() {
           </button>
           {eventDropdownOpen && <div className="event-switcher-panel">
             <label htmlFor="event-select">イベントを切り替え</label>
-            <select id="event-select" value={eventId} onChange={e => { setEventId(e.target.value); setConfirm(null); setEventDropdownOpen(false); }}>
+            <select id="event-select" value={eventId} onChange={e => { setLoading(true); setEventId(e.target.value); setConfirm(null); setEventDropdownOpen(false); }}>
               {events.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
             <div className="event-create-row">
