@@ -83,3 +83,7 @@
 .member-picker-trigger .member-picker-count,.member-picker-trigger .member-picker-chevron{color:#fff}
 .timed-alert{animation:alert-fade 2s ease-in-out both}
 @keyframes alert-fade{0%,82%{opacity:1}100%{opacity:0}}
+
+/* Match saved roster trigger typography to the primary registration button */
+.member-picker-trigger{font-size:12px;font-weight:700}
+.member-picker-trigger .member-picker-count{font-size:12px;font-weight:700}
