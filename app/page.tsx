@@ -42,24 +42,40 @@ export default function Home() {
 
   const load = useCallback(async () => {
     if (!supabase) { setError('Supabaseの接続設定がありません。'); setLoading(false); return; }
-    const [p, m, o, st, dir] = await Promise.all([
-      supabase.from('lunch_participants').select('id,name').order('id'),
-      supabase.from('lunch_menus').select('id,name,price,hidden,lunch_day').order('id'),
-      supabase.from('lunch_orders').select('id,participant_id,lunch_day,menu_id,amount,paid,locked_amount,cash').order('id'),
-      supabase.from('lunch_settlements').select('participant_id,lunch_day,paid,cash'),
+    const [ev, p, m, o, st, dir] = await Promise.all([
+      supabase.from('lunch_events').select('id,name').order('created_at', { ascending: false }),
+      supabase.from('lunch_participants').select('id,name').eq('event_id', eventId).order('id'),
+      supabase.from('lunch_menus').select('id,name,price,hidden,lunch_day').eq('event_id', eventId).order('id'),
+      supabase.from('lunch_orders').select('id,participant_id,lunch_day,menu_id,amount,paid,locked_amount,cash').eq('event_id', eventId).order('id'),
+      supabase.from('lunch_settlements').select('participant_id,lunch_day,paid,cash').eq('event_id', eventId),
       supabase.from('lunch_member_directory').select('id,name').order('name')
     ]);
-    const issue = p.error || m.error || o.error || st.error || dir.error;
+    const issue = ev.error || p.error || m.error || o.error || st.error || dir.error;
     if (issue) setError(issue.message);
     else {
-      setPeople(p.data ?? []); setDirectory(dir.data ?? []); setMenus(m.data ?? []); setOrders(o.data ?? []); setSettlements(st.data ?? []);
+      setEvents(ev.data ?? []); setPeople(p.data ?? []); setDirectory(dir.data ?? []); setMenus(m.data ?? []); setOrders(o.data ?? []); setSettlements(st.data ?? []);
       setCashDraft(() => { const next: Record<string, string> = {}; for (const item of (st.data ?? []) as Settlement[]) next[`${item.participant_id}-${item.lunch_day}`] = item.cash == null ? '' : String(item.cash); return next; });
       setError('');
     }
     setLoading(false);
-  }, []);
+  }, [eventId]);
 
   useEffect(() => { void load(); }, [load]);
+  async function addEvent() {
+    const name = newEventName.trim();
+    if (!supabase || !name) return;
+    const existing = events.find(item => item.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (existing) { setEventId(existing.id); setNewEventName(''); setEventDropdownOpen(false); setAlert('同じ名前のイベントがあるため、既存イベントに切り替えました。'); return; }
+    const { data, error: e } = await supabase.from('lunch_events').insert({ name }).select('id,name').single();
+    if (e || !data) { setError(e?.message ?? 'イベントを作成できませんでした。'); return; }
+    setEvents(current => [data as EventItem, ...current]);
+    setNewEventName('');
+    setDay(1); setMenuDay(1); setFilter('all'); setConfirm(null);
+    setEventId(data.id);
+    setEventDropdownOpen(false);
+    setAlert('新しいイベントを作成しました。');
+  }
+
   useEffect(() => {
     if (!alert) return;
     const timer = window.setTimeout(() => setAlert(''), 2000);
@@ -222,7 +238,24 @@ export default function Home() {
 
   return <main className="shell">
     <header className="topbar">
-      <div><h1>会計アプリ</h1></div>
+      <div className="brand-event-row">
+        <h1>会計アプリ</h1>
+        <div className="event-switcher">
+          <button type="button" className="event-switcher-trigger" aria-expanded={eventDropdownOpen} onClick={() => setEventDropdownOpen(v => !v)}>
+            <span>{events.find(item => item.id === eventId)?.name ?? 'イベントを選択'}</span><span className="event-chevron">▾</span>
+          </button>
+          {eventDropdownOpen && <div className="event-switcher-panel">
+            <label htmlFor="event-select">イベントを切り替え</label>
+            <select id="event-select" value={eventId} onChange={e => { setEventId(e.target.value); setConfirm(null); setEventDropdownOpen(false); }}>
+              {events.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <div className="event-create-row">
+              <input value={newEventName} onChange={e => setNewEventName(e.target.value)} placeholder="新しいイベント名を入力" onKeyDown={e => { if (e.key === 'Enter') void addEvent(); }} />
+              <button type="button" className="primary-button" disabled={!newEventName.trim()} onClick={() => void addEvent()}>新規イベントを追加</button>
+            </div>
+          </div>}
+        </div>
+      </div>
     </header>
     <nav className="tabs"><button className={tab === 'account' ? 'selected' : ''} onClick={() => setTab('account')}>会計管理</button><button className={tab === 'members' ? 'selected' : ''} onClick={() => setTab('members')}>メンバー管理</button><button className={tab === 'menus' ? 'selected' : ''} onClick={() => setTab('menus')}>メニュー管理</button></nav>
     {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError('')}>閉じる</button></div>}
