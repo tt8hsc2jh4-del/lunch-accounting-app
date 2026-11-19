@@ -144,3 +144,18 @@
 .event-create-row input{width:100%}
 .event-create-row .primary-button{width:100%;min-height:38px}
 @media(max-width:700px){.brand-event-row{gap:10px}.event-switcher-trigger{max-width:calc(100vw - 170px);font-size:12px;padding:8px 10px}.event-switcher-panel{right:auto;left:0}}
+
+
+/* Event list and password-protected deletion */
+.event-list{display:grid;gap:7px;max-height:300px;overflow-y:auto}
+.event-list-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px;padding:7px;border:1px solid var(--line);border-radius:9px;background:#fafbfd}
+.event-list-item.current{border-color:#b9c9e8;background:#f3f6fc}
+.event-name-button{min-width:0;border:0;background:transparent;text-align:left;color:var(--ink);font-size:12px;font-weight:700;padding:6px;overflow-wrap:anywhere}
+.event-delete-button{white-space:nowrap}
+.event-delete-confirm{grid-column:1/-1;display:grid;gap:7px;padding:10px;background:#fff7ed;border:1px solid #f4dfc4;border-radius:8px;color:#72512d;font-size:11px}
+.event-delete-confirm strong{font-size:12px}
+.event-delete-confirm input{width:100%;background:#fff}
+.event-delete-confirm>div{display:flex;gap:7px}
+.event-delete-confirm>div button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:7px 10px;font-size:11px}
+.event-delete-confirm>div .danger-button{background:var(--red);border-color:var(--red);color:#fff}
+.event-delete-confirm button:disabled{opacity:.45}
