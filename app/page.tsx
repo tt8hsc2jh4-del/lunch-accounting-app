@@ -21,6 +21,7 @@ export default function Home() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [cashDraft, setCashDraft] = useState<Record<string, string>>({});
   const [day, setDay] = useState(1);
+  const [menuDay, setMenuDay] = useState(1);
   const [tab, setTab] = useState<Tab>('account');
   const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
   const [loading, setLoading] = useState(true);
@@ -86,6 +87,7 @@ export default function Home() {
   }), [people]);
 
   const visibleMenus = useMemo(() => menus.filter(m => m.lunch_day === day && !m.hidden), [menus, day]);
+  const menuVisibleMenus = useMemo(() => menus.filter(m => m.lunch_day === menuDay && !m.hidden), [menus, menuDay]);
   const dayOrders = useMemo(() => orders.filter(o => o.lunch_day === day), [orders, day]);
   const total = dayOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
   const peopleCount = new Set(dayOrders.map(o => o.participant_id)).size;
@@ -102,7 +104,7 @@ export default function Home() {
     if (!supabase) return;
     const menu = visibleMenus.find(m => m.id === Number(newOrder[personId]));
     if (!menu) return;
-    const { error: e } = await supabase.from('lunch_orders').insert({ participant_id: personId, lunch_day: day, menu_id: menu.id, amount: menu.price, paid: false });
+    const { error: e } = await supabase.from('lunch_orders').insert({ participant_id: personId, lunch_day: menuDay, menu_id: menu.id, amount: menu.price, paid: false });
     if (e) setError(e.message); else {
       await supabase.from('lunch_settlements').upsert({ participant_id: personId, lunch_day: day, paid: false }, { onConflict: 'participant_id,lunch_day' });
       setNewOrder(v => ({ ...v, [personId]: '' })); await load();
@@ -180,7 +182,7 @@ export default function Home() {
   async function addMenu() {
     const name = newMenuName.trim(), price = Number(newMenuPrice);
     if (!supabase || !name || newMenuPrice.trim() === '' || !Number.isFinite(price) || price < 0) return;
-    const { error: e } = await supabase.from('lunch_menus').insert({ name, price, lunch_day: day, hidden: false });
+    const { error: e } = await supabase.from('lunch_menus').insert({ name, price, lunch_day: menuDay, hidden: false });
     if (e) setAlert(e.code === '23505' ? 'このメニューは既に登録されています。' : 'メニューを追加できませんでした。入力内容をご確認ください。'); else { setNewMenuName(''); setNewMenuPrice(''); await load(); }
   }
   async function saveMenu(id: number) {
@@ -188,7 +190,7 @@ export default function Home() {
     if (!supabase || !name || menuDraft.price.trim() === '' || !Number.isFinite(price) || price < 0) return;
     const { error: e } = await supabase.from('lunch_menus').update({ name, price }).eq('id', id);
     if (e) { setError(e.message); return; }
-    const { error: oe } = await supabase.from('lunch_orders').update({ amount: price }).eq('menu_id', id).eq('lunch_day', day);
+    const { error: oe } = await supabase.from('lunch_orders').update({ amount: price }).eq('menu_id', id).eq('lunch_day', menuDay);
     if (oe) setError(oe.message); else { setEditingMenu(null); await load(); }
   }
   async function addMenuOrder(menu: Menu) {
@@ -199,7 +201,7 @@ export default function Home() {
     const { error: e } = await supabase.from('lunch_orders').insert(orderRows);
     if (e) { setError(e.message); return; }
     const settlementRows = selectedMenuOrderPeople.map(participant_id => ({
-      participant_id, lunch_day: day, paid: false
+      participant_id, lunch_day: menuDay, paid: false
     }));
     const { error: se } = await supabase.from('lunch_settlements').upsert(settlementRows, { onConflict: 'participant_id,lunch_day', ignoreDuplicates: true });
     if (se) { setError(se.message); return; }
@@ -209,7 +211,7 @@ export default function Home() {
   }
   async function deleteMenu(id: number) {
     if (!supabase) return;
-    const { error: oe } = await supabase.from('lunch_orders').delete().eq('menu_id', id).eq('lunch_day', day);
+    const { error: oe } = await supabase.from('lunch_orders').delete().eq('menu_id', id).eq('lunch_day', menuDay);
     if (oe) { setError(oe.message); return; }
     const { error: me } = await supabase.from('lunch_menus').delete().eq('id', id);
     if (me) setError(me.message); else { setConfirm(null); await load(); }
@@ -282,10 +284,10 @@ export default function Home() {
       {tab === 'menus' && <section>
         <div className="section-heading block-heading tab-title-row"><h2>メニュー管理</h2><div className="day-switch"><button className={day === 1 ? 'active' : ''} onClick={() => { setDay(1); setConfirm(null); }}>1日目</button><button className={day === 2 ? 'active' : ''} onClick={() => { setDay(2); setConfirm(null); }}>2日目</button></div></div>
         <div className="add-bar menu-add"><input value={newMenuName} onChange={e => setNewMenuName(e.target.value)} placeholder="メニュー名" /><input value={newMenuPrice} onChange={e => setNewMenuPrice(e.target.value)} placeholder="価格（円）" inputMode="numeric" /><button className="primary-button" onClick={() => void addMenu()}>追加</button></div>
-        <div className="menu-list">{visibleMenus.map(menu => <article className="menu-card" key={menu.id}>
+        <div className="menu-list">{menuVisibleMenus.map(menu => <article className="menu-card" key={menu.id}>
           {editingMenu === menu.id ? <div className="edit-row menu-edit"><input value={menuDraft.name} onChange={e => setMenuDraft(v => ({ ...v, name: e.target.value }))} /><input value={menuDraft.price} inputMode="numeric" onChange={e => setMenuDraft(v => ({ ...v, price: e.target.value }))} /><button onClick={() => void saveMenu(menu.id)}>変更</button><button onClick={() => setEditingMenu(null)}>キャンセル</button></div> : <><div className="menu-info"><h3>{menu.name}</h3><strong>{yen(menu.price)}</strong></div><div className="menu-actions"><button className="primary-button" onClick={() => { setAddingMenuOrder(v => v === menu.id ? null : menu.id); setSelectedMenuOrderPeople([]); }}>注文に追加</button><button onClick={() => { setEditingMenu(menu.id); setMenuDraft({ name: menu.name, price: String(menu.price) }); }}>編集</button><button className="text-danger" onClick={() => setConfirm({ kind: 'menu', id: menu.id })}>削除</button></div></>}
           {addingMenuOrder === menu.id && <div className="menu-order-picker"><span>注文するメンバーを選択（複数選択可）</span><div className="menu-order-members">{orderedPeople.map(person => <button className={selectedMenuOrderPeople.includes(person.id) ? 'selected' : ''} key={person.id} type="button" aria-pressed={selectedMenuOrderPeople.includes(person.id)} onClick={() => setSelectedMenuOrderPeople(current => current.includes(person.id) ? current.filter(id => id !== person.id) : [...current, person.id])}>{person.name}</button>)}</div><div className="menu-order-footer"><button className="primary-button" disabled={selectedMenuOrderPeople.length === 0} onClick={() => void addMenuOrder(menu)}>追加</button><button type="button" onClick={() => { setAddingMenuOrder(null); setSelectedMenuOrderPeople([]); }}>キャンセル</button></div></div>}
-          {confirm?.kind === 'menu' && confirm.id === menu.id && <div className="inline-confirm full-confirm">このメニューと{day}日目の該当注文を削除しますか？<div><button className="danger-button" onClick={() => void deleteMenu(menu.id)}>削除する</button><button onClick={() => setConfirm(null)}>キャンセル</button></div></div>}
+          {confirm?.kind === 'menu' && confirm.id === menu.id && <div className="inline-confirm full-confirm">このメニューと{menuDay}日目の該当注文を削除しますか？<div><button className="danger-button" onClick={() => void deleteMenu(menu.id)}>削除する</button><button onClick={() => setConfirm(null)}>キャンセル</button></div></div>}
         </article>)}</div>
       </section>}
     </>}
