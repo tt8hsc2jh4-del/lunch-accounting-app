@@ -87,3 +87,15 @@
 /* Match saved roster trigger typography to the primary registration button */
 .member-picker-trigger{font-size:12px;font-weight:700}
 .member-picker-trigger .member-picker-count{font-size:12px;font-weight:700}
+
+/* Menu order selection: keep selected members highlighted until batch add */
+.menu-actions .primary-button{background:var(--blue);border:1px solid var(--blue);color:#fff}
+.menu-order-picker{width:100%;padding:10px 12px;border:1px solid #dfe6f2;background:#f7f9fd;border-radius:9px;display:grid;gap:9px}
+.menu-order-picker>span{font-size:11px;font-weight:700;color:#68758a}
+.menu-order-members{display:flex;flex-wrap:wrap;gap:6px}
+.menu-order-members button{border:1px solid #dce3ef;background:#fff;color:var(--ink);border-radius:7px;padding:7px 10px;font-size:12px;font-weight:700}
+.menu-order-members button.selected{background:var(--blue);border-color:var(--blue);color:#fff}
+.menu-order-footer{display:flex;gap:7px;justify-content:flex-start;padding-top:2px}
+.menu-order-footer button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:7px 13px;font-size:12px;font-weight:700}
+.menu-order-footer .primary-button{background:var(--blue);border-color:var(--blue);color:#fff}
+.menu-order-footer .primary-button:disabled{opacity:.45}
