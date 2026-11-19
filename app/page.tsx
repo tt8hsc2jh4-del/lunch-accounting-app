@@ -104,7 +104,7 @@ export default function Home() {
     if (!supabase) return;
     const menu = visibleMenus.find(m => m.id === Number(newOrder[personId]));
     if (!menu) return;
-    const { error: e } = await supabase.from('lunch_orders').insert({ participant_id: personId, lunch_day: menuDay, menu_id: menu.id, amount: menu.price, paid: false });
+    const { error: e } = await supabase.from('lunch_orders').insert({ participant_id: personId, lunch_day: day, menu_id: menu.id, amount: menu.price, paid: false });
     if (e) setError(e.message); else {
       await supabase.from('lunch_settlements').upsert({ participant_id: personId, lunch_day: day, paid: false }, { onConflict: 'participant_id,lunch_day' });
       setNewOrder(v => ({ ...v, [personId]: '' })); await load();
@@ -196,7 +196,7 @@ export default function Home() {
   async function addMenuOrder(menu: Menu) {
     if (!supabase || selectedMenuOrderPeople.length === 0) return;
     const orderRows = selectedMenuOrderPeople.map(personId => ({
-      participant_id: personId, lunch_day: day, menu_id: menu.id, amount: menu.price, paid: false
+      participant_id: personId, lunch_day: menuDay, menu_id: menu.id, amount: menu.price, paid: false
     }));
     const { error: e } = await supabase.from('lunch_orders').insert(orderRows);
     if (e) { setError(e.message); return; }
@@ -282,7 +282,7 @@ export default function Home() {
         </article>)}</div>
       </section>}
       {tab === 'menus' && <section>
-        <div className="section-heading block-heading tab-title-row"><h2>メニュー管理</h2><div className="day-switch"><button className={day === 1 ? 'active' : ''} onClick={() => { setDay(1); setConfirm(null); }}>1日目</button><button className={day === 2 ? 'active' : ''} onClick={() => { setDay(2); setConfirm(null); }}>2日目</button></div></div>
+        <div className="section-heading block-heading tab-title-row"><h2>メニュー管理</h2><div className="day-switch"><button className={menuDay === 1 ? 'active' : ''} onClick={() => { setMenuDay(1); setConfirm(null); }}>1日目</button><button className={menuDay === 2 ? 'active' : ''} onClick={() => { setMenuDay(2); setConfirm(null); }}>2日目</button></div></div>
         <div className="add-bar menu-add"><input value={newMenuName} onChange={e => setNewMenuName(e.target.value)} placeholder="メニュー名" /><input value={newMenuPrice} onChange={e => setNewMenuPrice(e.target.value)} placeholder="価格（円）" inputMode="numeric" /><button className="primary-button" onClick={() => void addMenu()}>追加</button></div>
         <div className="menu-list">{menuVisibleMenus.map(menu => <article className="menu-card" key={menu.id}>
           {editingMenu === menu.id ? <div className="edit-row menu-edit"><input value={menuDraft.name} onChange={e => setMenuDraft(v => ({ ...v, name: e.target.value }))} /><input value={menuDraft.price} inputMode="numeric" onChange={e => setMenuDraft(v => ({ ...v, price: e.target.value }))} /><button onClick={() => void saveMenu(menu.id)}>変更</button><button onClick={() => setEditingMenu(null)}>キャンセル</button></div> : <><div className="menu-info"><h3>{menu.name}</h3><strong>{yen(menu.price)}</strong></div><div className="menu-actions"><button className="primary-button" onClick={() => { setAddingMenuOrder(v => v === menu.id ? null : menu.id); setSelectedMenuOrderPeople([]); }}>注文に追加</button><button onClick={() => { setEditingMenu(menu.id); setMenuDraft({ name: menu.name, price: String(menu.price) }); }}>編集</button><button className="text-danger" onClick={() => setConfirm({ kind: 'menu', id: menu.id })}>削除</button></div></>}
