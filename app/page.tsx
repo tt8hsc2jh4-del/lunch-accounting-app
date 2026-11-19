@@ -24,6 +24,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [newOrder, setNewOrder] = useState<Record<number, string>>({});
   const [newPerson, setNewPerson] = useState('');
+  const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
   const [newMenuName, setNewMenuName] = useState('');
   const [newMenuPrice, setNewMenuPrice] = useState('');
   const [confirm, setConfirm] = useState<Confirm>(null);
@@ -109,7 +110,7 @@ export default function Home() {
     const name = newPerson.trim();
     if (!supabase || !name) return;
     const { error: e } = await supabase.from('lunch_participants').insert({ name });
-    if (e) setError(e.message); else { setNewPerson(''); await load(); }
+    if (e) setError(e.message); else { setNewPerson(''); setMemberDropdownOpen(false); await load(); }
   }
   async function savePerson(id: number) {
     if (!supabase || !personDraft.trim()) return;
@@ -180,10 +181,21 @@ export default function Home() {
       </section>}
       {tab === 'members' && <section>
         <div className="section-heading block-heading"><div><h2>メンバー管理</h2><p className="muted">メンバーごとの1日目・2日目の注文内容と合計</p></div></div>
-        <div className="add-bar"><input value={newPerson} onChange={e => setNewPerson(e.target.value)} placeholder="メンバー名を入力" onKeyDown={e => { if (e.key === 'Enter') void addPerson(); }} /><button className="primary-button" onClick={() => void addPerson()}>メンバーを追加</button></div>
+        <div className="member-picker">
+          <button type="button" className="member-picker-trigger" aria-expanded={memberDropdownOpen} onClick={() => setMemberDropdownOpen(v => !v)}>
+            <span>メンバー一覧・追加・削除</span><span className="member-picker-count">{people.length}名</span><span className="member-picker-chevron">{memberDropdownOpen ? '▲' : '▼'}</span>
+          </button>
+          {memberDropdownOpen && <div className="member-picker-panel">
+            <div className="member-picker-list">{people.map(person => <div className="member-picker-item" key={person.id}>
+              <span>{person.name}</span>
+              {confirm?.kind === 'person' && confirm.id === person.id ? <div className="member-picker-confirm"><span>注文も含めて削除しますか？</span><button type="button" className="danger-button" onClick={() => void deletePerson(person.id)}>削除する</button><button type="button" onClick={() => setConfirm(null)}>キャンセル</button></div> : <button type="button" className="text-danger" onClick={() => setConfirm({ kind: 'person', id: person.id })}>削除</button>}
+            </div>)}</div>
+            <div className="member-picker-add"><input value={newPerson} onChange={e => setNewPerson(e.target.value)} placeholder="新しいメンバー名を入力" onKeyDown={e => { if (e.key === 'Enter') void addPerson(); }} /><button className="primary-button" onClick={() => void addPerson()} disabled={!newPerson.trim()}>メンバーを追加</button></div>
+          </div>}
+        </div>
         <div className="member-list">{people.map(person => <article className="member-card" key={person.id}>
-          <div className="member-heading">{editingPerson === person.id ? <div className="edit-row"><input value={personDraft} onChange={e => setPersonDraft(e.target.value)} /><button className="primary-button" onClick={() => void savePerson(person.id)}>保存</button><button onClick={() => setEditingPerson(null)}>キャンセル</button></div> : <><h3>{person.name}</h3><div><button onClick={() => { setEditingPerson(person.id); setPersonDraft(person.name); }}>名前変更</button><button className="text-danger" onClick={() => setConfirm({ kind: 'person', id: person.id })}>削除</button></div></>}</div>
-          {confirm?.kind === 'person' && confirm.id === person.id && <div className="inline-confirm">このメンバーとすべての注文を削除しますか？<div><button className="danger-button" onClick={() => void deletePerson(person.id)}>削除する</button><button onClick={() => setConfirm(null)}>キャンセル</button></div></div>}
+          <div className="member-heading">{editingPerson === person.id ? <div className="edit-row"><input value={personDraft} onChange={e => setPersonDraft(e.target.value)} /><button className="primary-button" onClick={() => void savePerson(person.id)}>保存</button><button onClick={() => setEditingPerson(null)}>キャンセル</button></div> : <><h3>{person.name}</h3><div><button onClick={() => { setEditingPerson(person.id); setPersonDraft(person.name); }}>名前変更</button></div></>}</div>
+          
           <div className="member-days">{[1, 2].map(d => { const os = orders.filter(o => o.participant_id === person.id && o.lunch_day === d); return <div key={d}><b>{d}日目</b><span>{os.length}件</span><span className="member-menu-names">{os.map(o => menus.find(m => m.id === o.menu_id)?.name ?? '削除済み').join('、') || '注文なし'}</span><strong>{yen(os.reduce((sum, o) => sum + Number(o.amount || 0), 0))}</strong></div>; })}</div>
         </article>)}</div>
       </section>}
