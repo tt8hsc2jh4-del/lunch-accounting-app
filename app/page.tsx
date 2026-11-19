@@ -134,12 +134,14 @@ export default function Home() {
   async function savePerson(id: number) {
     if (!supabase || !personDraft.trim()) return;
     const current = people.find(p => p.id === id);
+    const { error: e } = await supabase.from('lunch_participants').update({ name: personDraft.trim() }).eq('id', id);
+    if (e) { setError(e.message); return; }
     if (current && current.name !== personDraft.trim()) {
       const { error: de } = await supabase.from('lunch_member_directory').upsert({ name: personDraft.trim() }, { onConflict: 'name' });
       if (de) { setError(de.message); return; }
+      await supabase.from('lunch_member_directory').delete().eq('name', current.name);
     }
-    const { error: e } = await supabase.from('lunch_participants').update({ name: personDraft.trim() }).eq('id', id);
-    if (e) setError(e.message); else { setEditingPerson(null); await load(); }
+    setEditingPerson(null); await load();
   }
   async function deletePerson(id: number) {
     if (!supabase) return;
