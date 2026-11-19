@@ -4,15 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 type Person = { id: number; name: string };
+type DirectoryMember = { id: number; name: string };
 type Menu = { id: number; name: string; price: number; hidden: boolean | null; lunch_day: number };
 type Order = { id: number; participant_id: number; lunch_day: number; menu_id: number; amount: number; paid: boolean; locked_amount: number | null; cash: number | null };
 type Settlement = { participant_id: number; lunch_day: number; paid: boolean; cash: number | null };
 type Tab = 'account' | 'members' | 'menus';
-type Confirm = { kind: 'order' | 'person' | 'menu'; id: number } | null;
+type Confirm = { kind: 'order' | 'person' | 'menu' | 'directory'; id: number } | null;
 const yen = (value: number) => new Intl.NumberFormat('ja-JP').format(value) + '円';
 
 export default function Home() {
   const [people, setPeople] = useState<Person[]>([]);
+  const [directory, setDirectory] = useState<DirectoryMember[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
@@ -35,16 +37,17 @@ export default function Home() {
 
   const load = useCallback(async () => {
     if (!supabase) { setError('Supabaseの接続設定がありません。'); setLoading(false); return; }
-    const [p, m, o, st] = await Promise.all([
+    const [p, m, o, st, dir] = await Promise.all([
       supabase.from('lunch_participants').select('id,name').order('id'),
       supabase.from('lunch_menus').select('id,name,price,hidden,lunch_day').order('id'),
       supabase.from('lunch_orders').select('id,participant_id,lunch_day,menu_id,amount,paid,locked_amount,cash').order('id'),
-      supabase.from('lunch_settlements').select('participant_id,lunch_day,paid,cash')
+      supabase.from('lunch_settlements').select('participant_id,lunch_day,paid,cash'),
+      supabase.from('lunch_member_directory').select('id,name').order('name')
     ]);
-    const issue = p.error || m.error || o.error || st.error;
+    const issue = p.error || m.error || o.error || st.error || dir.error;
     if (issue) setError(issue.message);
     else {
-      setPeople(p.data ?? []); setMenus(m.data ?? []); setOrders(o.data ?? []); setSettlements(st.data ?? []);
+      setPeople(p.data ?? []); setDirectory(dir.data ?? []); setMenus(m.data ?? []); setOrders(o.data ?? []); setSettlements(st.data ?? []);
       setCashDraft(() => { const next: Record<string, string> = {}; for (const item of (st.data ?? []) as Settlement[]) next[`${item.participant_id}-${item.lunch_day}`] = item.cash == null ? '' : String(item.cash); return next; });
       setError('');
     }
@@ -57,6 +60,7 @@ export default function Home() {
     if (!client) return;
     const channel = client.channel('lunch-accounting-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_participants' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_member_directory' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_menus' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_orders' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_settlements' }, () => { void load(); })
@@ -109,11 +113,31 @@ export default function Home() {
   async function addPerson() {
     const name = newPerson.trim();
     if (!supabase || !name) return;
+    const { error: de } = await supabase.from('lunch_member_directory').upsert({ name }, { onConflict: 'name' });
+    if (de) { setError(de.message); return; }
+    if (people.some(p => p.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      setNewPerson(''); setError('このメンバーは既に今回の一覧に登録されています。'); await load(); return;
+    }
     const { error: e } = await supabase.from('lunch_participants').insert({ name });
     if (e) setError(e.message); else { setNewPerson(''); setMemberDropdownOpen(false); await load(); }
   }
+  async function activateDirectoryMember(member: DirectoryMember) {
+    if (!supabase || people.some(p => p.name.toLocaleLowerCase() === member.name.toLocaleLowerCase())) return;
+    const { error: e } = await supabase.from('lunch_participants').insert({ name: member.name });
+    if (e) setError(e.message); else await load();
+  }
+  async function deleteDirectoryMember(id: number) {
+    if (!supabase) return;
+    const { error: e } = await supabase.from('lunch_member_directory').delete().eq('id', id);
+    if (e) setError(e.message); else { setConfirm(null); await load(); }
+  }
   async function savePerson(id: number) {
     if (!supabase || !personDraft.trim()) return;
+    const current = people.find(p => p.id === id);
+    if (current && current.name !== personDraft.trim()) {
+      const { error: de } = await supabase.from('lunch_member_directory').upsert({ name: personDraft.trim() }, { onConflict: 'name' });
+      if (de) { setError(de.message); return; }
+    }
     const { error: e } = await supabase.from('lunch_participants').update({ name: personDraft.trim() }).eq('id', id);
     if (e) setError(e.message); else { setEditingPerson(null); await load(); }
   }
@@ -183,19 +207,26 @@ export default function Home() {
         <div className="section-heading block-heading"><div><h2>メンバー管理</h2><p className="muted">メンバーごとの1日目・2日目の注文内容と合計</p></div></div>
         <div className="member-picker">
           <button type="button" className="member-picker-trigger" aria-expanded={memberDropdownOpen} onClick={() => setMemberDropdownOpen(v => !v)}>
-            <span>メンバー一覧・追加・削除</span><span className="member-picker-count">{people.length}名</span><span className="member-picker-chevron">{memberDropdownOpen ? '▲' : '▼'}</span>
+            <span>保存メンバーから今回の参加者を追加</span><span className="member-picker-count">保存名簿 {directory.length}名</span><span className="member-picker-chevron">{memberDropdownOpen ? '▲' : '▼'}</span>
           </button>
           {memberDropdownOpen && <div className="member-picker-panel">
-            <div className="member-picker-list">{people.map(person => <div className="member-picker-item" key={person.id}>
-              <span>{person.name}</span>
-              {confirm?.kind === 'person' && confirm.id === person.id ? <div className="member-picker-confirm"><span>注文も含めて削除しますか？</span><button type="button" className="danger-button" onClick={() => void deletePerson(person.id)}>削除する</button><button type="button" onClick={() => setConfirm(null)}>キャンセル</button></div> : <button type="button" className="text-danger" onClick={() => setConfirm({ kind: 'person', id: person.id })}>削除</button>}
-            </div>)}</div>
-            <div className="member-picker-add"><input value={newPerson} onChange={e => setNewPerson(e.target.value)} placeholder="新しいメンバー名を入力" onKeyDown={e => { if (e.key === 'Enter') void addPerson(); }} /><button className="primary-button" onClick={() => void addPerson()} disabled={!newPerson.trim()}>メンバーを追加</button></div>
+            <div className="member-picker-list">{directory.map(member => {
+              const active = people.some(p => p.name.toLocaleLowerCase() === member.name.toLocaleLowerCase());
+              return <div className="member-picker-item" key={member.id}>
+                <span>{member.name}</span>
+                <div className="member-picker-actions">
+                  {confirm?.kind === 'directory' && confirm.id === member.id
+                    ? <div className="member-picker-confirm"><span>保存名簿から削除しますか？</span><button type="button" className="danger-button" onClick={() => void deleteDirectoryMember(member.id)}>削除する</button><button type="button" onClick={() => setConfirm(null)}>キャンセル</button></div>
+                    : <><button type="button" className="primary-button" disabled={active} onClick={() => void activateDirectoryMember(member)}>{active ? '今回登録済み' : '今回に追加'}</button><button type="button" className="text-danger" onClick={() => setConfirm({ kind: 'directory', id: member.id })}>名簿から削除</button></>}
+                </div>
+              </div>;
+            })}</div>
+            <div className="member-picker-add"><input value={newPerson} onChange={e => setNewPerson(e.target.value)} placeholder="新しいメンバー名を入力" onKeyDown={e => { if (e.key === 'Enter') void addPerson(); }} /><button className="primary-button" onClick={() => void addPerson()} disabled={!newPerson.trim()}>名簿に登録して今回に追加</button></div>
           </div>}
         </div>
         <div className="member-list">{people.map(person => <article className="member-card" key={person.id}>
-          <div className="member-heading">{editingPerson === person.id ? <div className="edit-row"><input value={personDraft} onChange={e => setPersonDraft(e.target.value)} /><button className="primary-button" onClick={() => void savePerson(person.id)}>保存</button><button onClick={() => setEditingPerson(null)}>キャンセル</button></div> : <><h3>{person.name}</h3><div><button onClick={() => { setEditingPerson(person.id); setPersonDraft(person.name); }}>名前変更</button></div></>}</div>
-          
+          <div className="member-heading">{editingPerson === person.id ? <div className="edit-row"><input value={personDraft} onChange={e => setPersonDraft(e.target.value)} /><button className="primary-button" onClick={() => void savePerson(person.id)}>保存</button><button onClick={() => setEditingPerson(null)}>キャンセル</button></div> : <><h3>{person.name}</h3><div><button onClick={() => { setEditingPerson(person.id); setPersonDraft(person.name); }}>名前変更</button><button className="text-danger" onClick={() => setConfirm({ kind: 'person', id: person.id })}>削除</button></div></>}</div>
+          {confirm?.kind === 'person' && confirm.id === person.id && <div className="inline-confirm">このメンバーと今回の注文を削除しますか？<div><button className="danger-button" onClick={() => void deletePerson(person.id)}>削除する</button><button onClick={() => setConfirm(null)}>キャンセル</button></div></div>}
           <div className="member-days">{[1, 2].map(d => { const os = orders.filter(o => o.participant_id === person.id && o.lunch_day === d); return <div key={d}><b>{d}日目</b><span>{os.length}件</span><span className="member-menu-names">{os.map(o => menus.find(m => m.id === o.menu_id)?.name ?? '削除済み').join('、') || '注文なし'}</span><strong>{yen(os.reduce((sum, o) => sum + Number(o.amount || 0), 0))}</strong></div>; })}</div>
         </article>)}</div>
       </section>}
