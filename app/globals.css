@@ -159,3 +159,10 @@
 .event-delete-confirm>div button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:7px 10px;font-size:11px}
 .event-delete-confirm>div .danger-button{background:var(--red);border-color:var(--red);color:#fff}
 .event-delete-confirm button:disabled{opacity:.45}
+
+
+/* Event edit action placed immediately before delete */
+.event-row-actions{display:flex;align-items:center;gap:6px}
+.event-edit-button{border:1px solid #dce3ef;background:#fff;color:var(--blue);border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+.event-rename-confirm .primary-button{border:0;background:var(--blue);color:#fff;border-radius:7px;padding:7px 12px;font-size:11px;font-weight:700}
+.event-rename-confirm input{width:100%;background:#fff}
