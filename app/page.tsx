@@ -217,8 +217,12 @@ export default function Home() {
       {tab === 'members' && <section>
         <div className="section-heading block-heading"><div><h2>メンバー管理</h2><p className="muted">メンバーごとの1日目・2日目の注文内容と合計</p></div></div>
         <div className="member-picker">
+          <div className="member-picker-add">
+            <input value={newPerson} onChange={e => setNewPerson(e.target.value)} placeholder="新しいメンバー名を入力" onKeyDown={e => { if (e.key === 'Enter') void addPerson(); }} />
+            <button className="primary-button" onClick={() => void addPerson()} disabled={!newPerson.trim()}>名簿に登録して今回に追加</button>
+          </div>
           <button type="button" className="member-picker-trigger" aria-expanded={memberDropdownOpen} onClick={() => setMemberDropdownOpen(v => !v)}>
-            <span>保存メンバーから今回の参加者を追加</span><span className="member-picker-count">保存名簿 {directory.length}名</span><span className="member-picker-chevron">{memberDropdownOpen ? '▲' : '▼'}</span>
+            <span>名簿から追加</span><span className="member-picker-count">保存名簿 {directory.length}名</span><span className="member-picker-chevron">{memberDropdownOpen ? '▲' : '▼'}</span>
           </button>
           {memberDropdownOpen && <div className="member-picker-panel">
             <div className="member-picker-list">{directory.map(member => {
@@ -232,7 +236,6 @@ export default function Home() {
                 </div>
               </div>;
             })}</div>
-            <div className="member-picker-add"><input value={newPerson} onChange={e => setNewPerson(e.target.value)} placeholder="新しいメンバー名を入力" onKeyDown={e => { if (e.key === 'Enter') void addPerson(); }} /><button className="primary-button" onClick={() => void addPerson()} disabled={!newPerson.trim()}>名簿に登録して今回に追加</button></div>
           </div>}
         </div>
         <div className="member-list">{orderedPeople.map(person => <article className="member-card" key={person.id}>
