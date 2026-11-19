@@ -37,6 +37,7 @@ export default function Home() {
   const [editingMenu, setEditingMenu] = useState<number | null>(null);
   const [menuDraft, setMenuDraft] = useState({ name: '', price: '' });
   const [addingMenuOrder, setAddingMenuOrder] = useState<number | null>(null);
+  const [selectedMenuOrderPeople, setSelectedMenuOrderPeople] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     if (!supabase) { setError('Supabaseの接続設定がありません。'); setLoading(false); return; }
@@ -190,13 +191,20 @@ export default function Home() {
     const { error: oe } = await supabase.from('lunch_orders').update({ amount: price }).eq('menu_id', id).eq('lunch_day', day);
     if (oe) setError(oe.message); else { setEditingMenu(null); await load(); }
   }
-  async function addMenuOrder(menu: Menu, personId: number) {
-    if (!supabase) return;
-    const { error: e } = await supabase.from('lunch_orders').insert({ participant_id: personId, lunch_day: day, menu_id: menu.id, amount: menu.price, paid: false });
+  async function addMenuOrder(menu: Menu) {
+    if (!supabase || selectedMenuOrderPeople.length === 0) return;
+    const orderRows = selectedMenuOrderPeople.map(personId => ({
+      participant_id: personId, lunch_day: day, menu_id: menu.id, amount: menu.price, paid: false
+    }));
+    const { error: e } = await supabase.from('lunch_orders').insert(orderRows);
     if (e) { setError(e.message); return; }
-    const { error: se } = await supabase.from('lunch_settlements').upsert({ participant_id: personId, lunch_day: day, paid: false }, { onConflict: 'participant_id,lunch_day' });
+    const settlementRows = selectedMenuOrderPeople.map(participant_id => ({
+      participant_id, lunch_day: day, paid: false
+    }));
+    const { error: se } = await supabase.from('lunch_settlements').upsert(settlementRows, { onConflict: 'participant_id,lunch_day', ignoreDuplicates: true });
     if (se) { setError(se.message); return; }
     setAddingMenuOrder(null);
+    setSelectedMenuOrderPeople([]);
     await load();
   }
   async function deleteMenu(id: number) {
@@ -275,8 +283,8 @@ export default function Home() {
         <div className="section-heading block-heading"><div><h2>メニュー管理</h2><p className="muted">{day}日目のメニュー</p></div></div>
         <div className="add-bar menu-add"><input value={newMenuName} onChange={e => setNewMenuName(e.target.value)} placeholder="メニュー名" /><input value={newMenuPrice} onChange={e => setNewMenuPrice(e.target.value)} placeholder="価格（円）" inputMode="numeric" /><button className="primary-button" onClick={() => void addMenu()}>追加</button></div>
         <div className="menu-list">{visibleMenus.map(menu => <article className="menu-card" key={menu.id}>
-          {editingMenu === menu.id ? <div className="edit-row menu-edit"><input value={menuDraft.name} onChange={e => setMenuDraft(v => ({ ...v, name: e.target.value }))} /><input value={menuDraft.price} inputMode="numeric" onChange={e => setMenuDraft(v => ({ ...v, price: e.target.value }))} /><button onClick={() => void saveMenu(menu.id)}>変更</button><button onClick={() => setEditingMenu(null)}>キャンセル</button></div> : <><div className="menu-info"><h3>{menu.name}</h3><strong>{yen(menu.price)}</strong></div><div className="menu-actions"><button onClick={() => { setEditingMenu(menu.id); setMenuDraft({ name: menu.name, price: String(menu.price) }); }}>編集</button><button className="primary-button" onClick={() => setAddingMenuOrder(v => v === menu.id ? null : menu.id)}>注文に追加</button><button className="text-danger" onClick={() => setConfirm({ kind: 'menu', id: menu.id })}>削除</button></div></>}
-          {addingMenuOrder === menu.id && <div className="menu-order-picker"><span>注文するメンバーを選択</span><div>{orderedPeople.map(person => <button key={person.id} type="button" onClick={() => void addMenuOrder(menu, person.id)}>{person.name}</button>)}</div></div>}
+          {editingMenu === menu.id ? <div className="edit-row menu-edit"><input value={menuDraft.name} onChange={e => setMenuDraft(v => ({ ...v, name: e.target.value }))} /><input value={menuDraft.price} inputMode="numeric" onChange={e => setMenuDraft(v => ({ ...v, price: e.target.value }))} /><button onClick={() => void saveMenu(menu.id)}>変更</button><button onClick={() => setEditingMenu(null)}>キャンセル</button></div> : <><div className="menu-info"><h3>{menu.name}</h3><strong>{yen(menu.price)}</strong></div><div className="menu-actions"><button className="primary-button" onClick={() => { setAddingMenuOrder(v => v === menu.id ? null : menu.id); setSelectedMenuOrderPeople([]); }}>注文に追加</button><button onClick={() => { setEditingMenu(menu.id); setMenuDraft({ name: menu.name, price: String(menu.price) }); }}>編集</button><button className="text-danger" onClick={() => setConfirm({ kind: 'menu', id: menu.id })}>削除</button></div></>}
+          {addingMenuOrder === menu.id && <div className="menu-order-picker"><span>注文するメンバーを選択（複数選択可）</span><div className="menu-order-members">{orderedPeople.map(person => <button className={selectedMenuOrderPeople.includes(person.id) ? 'selected' : ''} key={person.id} type="button" aria-pressed={selectedMenuOrderPeople.includes(person.id)} onClick={() => setSelectedMenuOrderPeople(current => current.includes(person.id) ? current.filter(id => id !== person.id) : [...current, person.id])}>{person.name}</button>)}</div><div className="menu-order-footer"><button className="primary-button" disabled={selectedMenuOrderPeople.length === 0} onClick={() => void addMenuOrder(menu)}>追加</button><button type="button" onClick={() => { setAddingMenuOrder(null); setSelectedMenuOrderPeople([]); }}>キャンセル</button></div></div>}
           {confirm?.kind === 'menu' && confirm.id === menu.id && <div className="inline-confirm full-confirm">このメニューと{day}日目の該当注文を削除しますか？<div><button className="danger-button" onClick={() => void deleteMenu(menu.id)}>削除する</button><button onClick={() => setConfirm(null)}>キャンセル</button></div></div>}
         </article>)}</div>
       </section>}
