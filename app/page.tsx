@@ -34,17 +34,17 @@ export default function Home() {
 
   const load = useCallback(async () => {
     if (!supabase) { setError('Supabaseの接続設定がありません。'); setLoading(false); return; }
-    const [p, m, o] = await Promise.all([
+    const [p, m, o, st] = await Promise.all([
       supabase.from('lunch_participants').select('id,name').order('id'),
       supabase.from('lunch_menus').select('id,name,price,hidden,lunch_day').order('id'),
       supabase.from('lunch_orders').select('id,participant_id,lunch_day,menu_id,amount,paid,locked_amount,cash').order('id'),
       supabase.from('lunch_settlements').select('participant_id,lunch_day,paid,cash')
     ]);
-    const issue = p.error || m.error || o.error || (arguments[0] as any)?.error;
+    const issue = p.error || m.error || o.error || st.error;
     if (issue) setError(issue.message);
     else {
-      setPeople(p.data ?? []); setMenus(m.data ?? []); setOrders(o.data ?? []); setSettlements((arguments[0] as any)?.data ?? []);
-      setCashDraft(prev => { const next = { ...prev }; for (const item of ((arguments[0] as any)?.data ?? []) as Settlement[]) { const key = `${item.participant_id}-${item.lunch_day}`; if (next[key] === undefined) next[key] = item.cash == null ? '' : String(item.cash); } return next; });
+      setPeople(p.data ?? []); setMenus(m.data ?? []); setOrders(o.data ?? []); setSettlements(st.data ?? []);
+      setCashDraft(() => { const next: Record<string, string> = {}; for (const item of (st.data ?? []) as Settlement[]) next[`${item.participant_id}-${item.lunch_day}`] = item.cash == null ? '' : String(item.cash); return next; });
       setError('');
     }
     setLoading(false);
