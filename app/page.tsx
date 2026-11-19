@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
+type EventItem = { id: string; name: string };
 type Person = { id: number; name: string };
 type DirectoryMember = { id: number; name: string };
 type Menu = { id: number; name: string; price: number; hidden: boolean | null; lunch_day: number };
@@ -14,6 +15,10 @@ const DEFAULT_MEMBER_ORDER = ['三木 和','中山 貴志','牛山 和徳','牛�
 const yen = (value: number) => new Intl.NumberFormat('ja-JP').format(value) + '円';
 
 export default function Home() {
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [eventId, setEventId] = useState('20261120-0000-4000-8000-000000000001');
+  const [eventDropdownOpen, setEventDropdownOpen] = useState(false);
+  const [newEventName, setNewEventName] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
   const [directory, setDirectory] = useState<DirectoryMember[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -76,6 +81,21 @@ export default function Home() {
     setAlert('新しいイベントを作成しました。');
   }
 
+  async function addEvent() {
+    const name = newEventName.trim();
+    if (!supabase || !name) return;
+    const existing = events.find(item => item.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (existing) { setEventId(existing.id); setNewEventName(''); setEventDropdownOpen(false); setAlert('同じ名前のイベントがあるため、既存イベントに切り替えました。'); return; }
+    const { data, error: e } = await supabase.from('lunch_events').insert({ name }).select('id,name').single();
+    if (e || !data) { setError(e?.message ?? 'イベントを作成できませんでした。'); return; }
+    setEvents(current => [data as EventItem, ...current]);
+    setNewEventName('');
+    setDay(1); setMenuDay(1); setFilter('all'); setConfirm(null);
+    setEventId(data.id);
+    setEventDropdownOpen(false);
+    setAlert('新しいイベントを作成しました。');
+  }
+
   useEffect(() => {
     if (!alert) return;
     const timer = window.setTimeout(() => setAlert(''), 2000);
@@ -123,9 +143,9 @@ export default function Home() {
     if (!supabase) return;
     const menu = visibleMenus.find(m => m.id === Number(newOrder[personId]));
     if (!menu) return;
-    const { error: e } = await supabase.from('lunch_orders').insert({ participant_id: personId, lunch_day: day, menu_id: menu.id, amount: menu.price, paid: false });
+    const { error: e } = await supabase.from('lunch_orders').insert({ event_id: eventId, participant_id: personId, lunch_day: day, menu_id: menu.id, amount: menu.price, paid: false });
     if (e) setError(e.message); else {
-      await supabase.from('lunch_settlements').upsert({ participant_id: personId, lunch_day: day, paid: false }, { onConflict: 'participant_id,lunch_day' });
+      await supabase.from('lunch_settlements').upsert({ event_id: eventId, participant_id: personId, lunch_day: day, paid: false }, { onConflict: 'participant_id,lunch_day,event_id' });
       setNewOrder(v => ({ ...v, [personId]: '' })); await load();
     }
   }
@@ -137,7 +157,7 @@ export default function Home() {
   async function updateSettlement(personId: number, patch: Partial<Pick<Settlement, 'paid' | 'cash'>>) {
     if (!supabase) return;
     const current = getSettlement(personId);
-    const { error: e } = await supabase.from('lunch_settlements').upsert({ participant_id: personId, lunch_day: day, paid: current?.paid ?? false, cash: current?.cash ?? null, ...patch }, { onConflict: 'participant_id,lunch_day' });
+    const { error: e } = await supabase.from('lunch_settlements').upsert({ event_id: eventId, participant_id: personId, lunch_day: day, paid: current?.paid ?? false, cash: current?.cash ?? null, ...patch }, { onConflict: 'participant_id,lunch_day,event_id' });
     if (e) setError(e.message); else await load();
   }
   async function saveCash(personId: number) {
@@ -156,12 +176,12 @@ export default function Home() {
     if (people.some(p => p.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
       setNewPerson(''); setAlert('このメンバーは既に今回の一覧に登録されています。'); await load(); return;
     }
-    const { error: e } = await supabase.from('lunch_participants').insert({ name });
+    const { error: e } = await supabase.from('lunch_participants').insert({ event_id: eventId, name });
     if (e) setError(e.message); else { setNewPerson(''); setMemberDropdownOpen(false); await load(); }
   }
   async function activateDirectoryMember(member: DirectoryMember) {
     if (!supabase || people.some(p => p.name.toLocaleLowerCase() === member.name.toLocaleLowerCase())) return;
-    const { error: e } = await supabase.from('lunch_participants').insert({ name: member.name });
+    const { error: e } = await supabase.from('lunch_participants').insert({ event_id: eventId, name: member.name });
     if (e) setError(e.message); else await load();
   }
   async function deleteDirectoryMember(id: number) {
@@ -169,11 +189,11 @@ export default function Home() {
     const member = directory.find(item => item.id === id);
     const active = member && people.find(person => person.name.toLocaleLowerCase() === member.name.toLocaleLowerCase());
     if (active) {
-      const { error: oe } = await supabase.from('lunch_orders').delete().eq('participant_id', active.id);
+      const { error: oe } = await supabase.from('lunch_orders').delete().eq('participant_id', active.id).eq('event_id', eventId);
       if (oe) { setError(oe.message); return; }
-      const { error: se } = await supabase.from('lunch_settlements').delete().eq('participant_id', active.id);
+      const { error: se } = await supabase.from('lunch_settlements').delete().eq('participant_id', active.id).eq('event_id', eventId);
       if (se) { setError(se.message); return; }
-      const { error: pe } = await supabase.from('lunch_participants').delete().eq('id', active.id);
+      const { error: pe } = await supabase.from('lunch_participants').delete().eq('id', active.id).eq('event_id', eventId);
       if (pe) { setError(pe.message); return; }
     }
     const { error: e } = await supabase.from('lunch_member_directory').delete().eq('id', id);
@@ -182,7 +202,7 @@ export default function Home() {
   async function savePerson(id: number) {
     if (!supabase || !personDraft.trim()) return;
     const current = people.find(p => p.id === id);
-    const { error: e } = await supabase.from('lunch_participants').update({ name: personDraft.trim() }).eq('id', id);
+    const { error: e } = await supabase.from('lunch_participants').update({ name: personDraft.trim() }).eq('id', id).eq('event_id', eventId);
     if (e) { setError(e.message); return; }
     if (current && current.name !== personDraft.trim()) {
       const { error: de } = await supabase.from('lunch_member_directory').upsert({ name: personDraft.trim() }, { onConflict: 'name' });
@@ -193,36 +213,36 @@ export default function Home() {
   }
   async function deletePerson(id: number) {
     if (!supabase) return;
-    const { error: e } = await supabase.from('lunch_orders').delete().eq('participant_id', id);
+    const { error: e } = await supabase.from('lunch_orders').delete().eq('participant_id', id).eq('event_id', eventId);
     if (e) { setError(e.message); return; }
-    const { error: pe } = await supabase.from('lunch_participants').delete().eq('id', id);
+    const { error: pe } = await supabase.from('lunch_participants').delete().eq('id', id).eq('event_id', eventId);
     if (pe) setError(pe.message); else { setConfirm(null); await load(); }
   }
   async function addMenu() {
     const name = newMenuName.trim(), price = Number(newMenuPrice);
     if (!supabase || !name || newMenuPrice.trim() === '' || !Number.isFinite(price) || price < 0) return;
-    const { error: e } = await supabase.from('lunch_menus').insert({ name, price, lunch_day: menuDay, hidden: false });
+    const { error: e } = await supabase.from('lunch_menus').insert({ event_id: eventId, name, price, lunch_day: menuDay, hidden: false });
     if (e) setAlert(e.code === '23505' ? 'このメニューは既に登録されています。' : 'メニューを追加できませんでした。入力内容をご確認ください。'); else { setNewMenuName(''); setNewMenuPrice(''); await load(); }
   }
   async function saveMenu(id: number) {
     const name = menuDraft.name.trim(), price = Number(menuDraft.price);
     if (!supabase || !name || menuDraft.price.trim() === '' || !Number.isFinite(price) || price < 0) return;
-    const { error: e } = await supabase.from('lunch_menus').update({ name, price }).eq('id', id);
+    const { error: e } = await supabase.from('lunch_menus').update({ name, price }).eq('id', id).eq('event_id', eventId);
     if (e) { setError(e.message); return; }
-    const { error: oe } = await supabase.from('lunch_orders').update({ amount: price }).eq('menu_id', id).eq('lunch_day', menuDay);
+    const { error: oe } = await supabase.from('lunch_orders').update({ amount: price }).eq('menu_id', id).eq('lunch_day', menuDay).eq('event_id', eventId);
     if (oe) setError(oe.message); else { setEditingMenu(null); await load(); }
   }
   async function addMenuOrder(menu: Menu) {
     if (!supabase || selectedMenuOrderPeople.length === 0) return;
     const orderRows = selectedMenuOrderPeople.map(personId => ({
-      participant_id: personId, lunch_day: menuDay, menu_id: menu.id, amount: menu.price, paid: false
+      event_id: eventId, participant_id: personId, lunch_day: menuDay, menu_id: menu.id, amount: menu.price, paid: false
     }));
     const { error: e } = await supabase.from('lunch_orders').insert(orderRows);
     if (e) { setError(e.message); return; }
     const settlementRows = selectedMenuOrderPeople.map(participant_id => ({
-      participant_id, lunch_day: menuDay, paid: false
+      event_id: eventId, participant_id, lunch_day: menuDay, paid: false
     }));
-    const { error: se } = await supabase.from('lunch_settlements').upsert(settlementRows, { onConflict: 'participant_id,lunch_day', ignoreDuplicates: true });
+    const { error: se } = await supabase.from('lunch_settlements').upsert(settlementRows, { onConflict: 'participant_id,lunch_day,event_id', ignoreDuplicates: true });
     if (se) { setError(se.message); return; }
     setAddingMenuOrder(null);
     setSelectedMenuOrderPeople([]);
@@ -230,9 +250,9 @@ export default function Home() {
   }
   async function deleteMenu(id: number) {
     if (!supabase) return;
-    const { error: oe } = await supabase.from('lunch_orders').delete().eq('menu_id', id).eq('lunch_day', menuDay);
+    const { error: oe } = await supabase.from('lunch_orders').delete().eq('menu_id', id).eq('lunch_day', menuDay).eq('event_id', eventId);
     if (oe) { setError(oe.message); return; }
-    const { error: me } = await supabase.from('lunch_menus').delete().eq('id', id);
+    const { error: me } = await supabase.from('lunch_menus').delete().eq('id', id).eq('event_id', eventId);
     if (me) setError(me.message); else { setConfirm(null); await load(); }
   }
 
