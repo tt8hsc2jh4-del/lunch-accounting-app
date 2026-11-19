@@ -44,13 +44,14 @@ export default function Home() {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    if (!supabase) return;
-    const channel = supabase.channel('lunch-accounting-live')
+    const client = supabase;
+    if (!client) return;
+    const channel = client.channel('lunch-accounting-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_participants' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_menus' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_orders' }, () => { void load(); })
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => { void client.removeChannel(channel); };
   }, [load]);
 
   const visibleMenus = useMemo(() => menus.filter(m => m.lunch_day === day && !m.hidden), [menus, day]);
