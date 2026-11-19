@@ -217,14 +217,14 @@ export default function Home() {
 
   return <main className="shell">
     <header className="topbar">
-      <div><p className="eyebrow">LUNCH ACCOUNTING</p><h1>昼食会計アプリ</h1><p className="subtitle">注文・メンバー・メニューをまとめて管理</p></div>
-      <div className="day-switch"><button className={day === 1 ? 'active' : ''} onClick={() => { setDay(1); setConfirm(null); }}>1日目</button><button className={day === 2 ? 'active' : ''} onClick={() => { setDay(2); setConfirm(null); }}>2日目</button></div>
+      <div><p className="eyebrow">LUNCH ACCOUNTING</p><h1>昼食会計アプリ</h1></div>
     </header>
     <nav className="tabs"><button className={tab === 'account' ? 'selected' : ''} onClick={() => setTab('account')}>会計管理</button><button className={tab === 'members' ? 'selected' : ''} onClick={() => setTab('members')}>メンバー管理</button><button className={tab === 'menus' ? 'selected' : ''} onClick={() => setTab('menus')}>メニュー管理</button></nav>
     {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError('')}>閉じる</button></div>}
     {alert && <div className="error-banner timed-alert" role="status"><span>{alert}</span></div>}
     {loading ? <div className="loading">読み込み中…</div> : <>
       {tab === 'account' && <section>
+        <div className="section-heading block-heading tab-title-row"><h2>会計管理</h2><div className="day-switch"><button className={day === 1 ? 'active' : ''} onClick={() => { setDay(1); setConfirm(null); }}>1日目</button><button className={day === 2 ? 'active' : ''} onClick={() => { setDay(2); setConfirm(null); }}>2日目</button></div></div>
         <div className="summary-grid"><article><span>注文合計</span><strong>{yen(total)}</strong></article><article><span>注文人数</span><strong>{peopleCount}<small>人</small></strong></article><article><span>注文数</span><strong>{dayOrders.length}<small>品</small></strong></article></div>
         <div className="section-heading"><div className="filters"><button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>全員</button><button className={filter === 'unpaid' ? 'on' : ''} onClick={() => setFilter('unpaid')}>未払い</button><button className={filter === 'paid' ? 'on' : ''} onClick={() => setFilter('paid')}>支払済</button></div></div>
         <div className="people-grid">{filteredPeople.map(person => {
@@ -250,7 +250,7 @@ export default function Home() {
         })}</div>
       </section>}
       {tab === 'members' && <section>
-        <div className="section-heading block-heading"><div><h2>メンバー管理</h2><p className="muted">メンバーごとの1日目・2日目の注文内容と合計</p></div></div>
+        <div className="section-heading block-heading"><div><h2>メンバー管理</h2></div></div>
         <div className="member-picker">
           <div className="member-picker-add">
             <input value={newPerson} onChange={e => setNewPerson(e.target.value)} placeholder="新しいメンバー名を入力" onKeyDown={e => { if (e.key === 'Enter') void addPerson(); }} />
@@ -280,7 +280,7 @@ export default function Home() {
         </article>)}</div>
       </section>}
       {tab === 'menus' && <section>
-        <div className="section-heading block-heading"><div><h2>メニュー管理</h2><p className="muted">{day}日目のメニュー</p></div></div>
+        <div className="section-heading block-heading tab-title-row"><h2>メニュー管理</h2><div className="day-switch"><button className={day === 1 ? 'active' : ''} onClick={() => { setDay(1); setConfirm(null); }}>1日目</button><button className={day === 2 ? 'active' : ''} onClick={() => { setDay(2); setConfirm(null); }}>2日目</button></div></div>
         <div className="add-bar menu-add"><input value={newMenuName} onChange={e => setNewMenuName(e.target.value)} placeholder="メニュー名" /><input value={newMenuPrice} onChange={e => setNewMenuPrice(e.target.value)} placeholder="価格（円）" inputMode="numeric" /><button className="primary-button" onClick={() => void addMenu()}>追加</button></div>
         <div className="menu-list">{visibleMenus.map(menu => <article className="menu-card" key={menu.id}>
           {editingMenu === menu.id ? <div className="edit-row menu-edit"><input value={menuDraft.name} onChange={e => setMenuDraft(v => ({ ...v, name: e.target.value }))} /><input value={menuDraft.price} inputMode="numeric" onChange={e => setMenuDraft(v => ({ ...v, price: e.target.value }))} /><button onClick={() => void saveMenu(menu.id)}>変更</button><button onClick={() => setEditingMenu(null)}>キャンセル</button></div> : <><div className="menu-info"><h3>{menu.name}</h3><strong>{yen(menu.price)}</strong></div><div className="menu-actions"><button className="primary-button" onClick={() => { setAddingMenuOrder(v => v === menu.id ? null : menu.id); setSelectedMenuOrderPeople([]); }}>注文に追加</button><button onClick={() => { setEditingMenu(menu.id); setMenuDraft({ name: menu.name, price: String(menu.price) }); }}>編集</button><button className="text-danger" onClick={() => setConfirm({ kind: 'menu', id: menu.id })}>削除</button></div></>}
