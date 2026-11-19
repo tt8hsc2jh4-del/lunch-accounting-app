@@ -207,7 +207,7 @@ export default function Home() {
     {alert && <div className="error-banner timed-alert" role="status"><span>{alert}</span></div>}
     {loading ? <div className="loading">読み込み中…</div> : <>
       {tab === 'account' && <section>
-        <div className="summary-grid"><article><span>注文合計</span><strong>{yen(total)}</strong></article><article><span>注文人数</span><strong>{peopleCount}<small>人</small></strong></article><article><span>注文数</span><strong>{dayOrders.length}<small>件</small></strong></article></div>
+        <div className="summary-grid"><article><span>注文合計</span><strong>{yen(total)}</strong></article><article><span>注文人数</span><strong>{peopleCount}<small>人</small></strong></article><article><span>注文数</span><strong>{dayOrders.length}<small>品</small></strong></article></div>
         <div className="section-heading"><div className="filters"><button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>全員</button><button className={filter === 'unpaid' ? 'on' : ''} onClick={() => setFilter('unpaid')}>未払い</button><button className={filter === 'paid' ? 'on' : ''} onClick={() => setFilter('paid')}>支払済</button></div></div>
         <div className="people-grid">{filteredPeople.map(person => {
           const mine = dayOrders.filter(o => o.participant_id === person.id);
@@ -258,7 +258,7 @@ export default function Home() {
         <div className="member-list">{orderedPeople.map(person => <article className="member-card" key={person.id}>
           <div className="member-heading">{editingPerson === person.id ? <div className="edit-row"><input value={personDraft} onChange={e => setPersonDraft(e.target.value)} /><button className="primary-button" onClick={() => void savePerson(person.id)}>保存</button><button onClick={() => setEditingPerson(null)}>キャンセル</button></div> : <><h3>{person.name}</h3><div><button onClick={() => { setEditingPerson(person.id); setPersonDraft(person.name); }}>名前変更</button><button className="text-danger" onClick={() => setConfirm({ kind: 'person', id: person.id })}>削除</button></div></>}</div>
           {confirm?.kind === 'person' && confirm.id === person.id && <div className="inline-confirm">このメンバーと今回の注文を削除しますか？<div><button className="danger-button" onClick={() => void deletePerson(person.id)}>削除する</button><button onClick={() => setConfirm(null)}>キャンセル</button></div></div>}
-          <div className="member-days">{[1, 2].map(d => { const os = orders.filter(o => o.participant_id === person.id && o.lunch_day === d); return <div key={d}><b>{d}日目</b><span>{os.length}件</span><span className="member-menu-names">{os.map(o => menus.find(m => m.id === o.menu_id)?.name ?? '削除済み').join('、') || '注文なし'}</span><strong>{yen(os.reduce((sum, o) => sum + Number(o.amount || 0), 0))}</strong></div>; })}</div>
+          <div className="member-days">{[1, 2].map(d => { const os = orders.filter(o => o.participant_id === person.id && o.lunch_day === d); return <div key={d}><b>{d}日目</b><span>{os.length}品</span><span className="member-menu-names">{os.map(o => menus.find(m => m.id === o.menu_id)?.name ?? '削除済み').join('、') || '注文なし'}</span><strong>{yen(os.reduce((sum, o) => sum + Number(o.amount || 0), 0))}</strong></div>; })}</div>
         </article>)}</div>
       </section>}
       {tab === 'menus' && <section>
