@@ -90,7 +90,10 @@ export default function Home() {
   const menuVisibleMenus = useMemo(() => menus.filter(m => m.lunch_day === menuDay && !m.hidden), [menus, menuDay]);
   const dayOrders = useMemo(() => orders.filter(o => o.lunch_day === day), [orders, day]);
   const total = dayOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
-  const peopleCount = new Set(dayOrders.map(o => o.participant_id)).size;
+  const orderingPeopleIds = new Set(dayOrders.map(o => o.participant_id));
+  const peopleCount = orderingPeopleIds.size;
+  const unpaidPeopleIds = [...orderingPeopleIds].filter(personId => !settlements.find(x => x.participant_id === personId && x.lunch_day === day)?.paid);
+  const unpaidAmount = dayOrders.filter(order => unpaidPeopleIds.includes(order.participant_id)).reduce((sum, order) => sum + Number(order.amount || 0), 0);
   const getSettlement = (personId: number) => settlements.find(x => x.participant_id === personId && x.lunch_day === day);
   const filteredPeople = orderedPeople.filter(person => {
     const mine = dayOrders.filter(o => o.participant_id === person.id);
@@ -227,8 +230,8 @@ export default function Home() {
     {loading ? <div className="loading">読み込み中…</div> : <>
       {tab === 'account' && <section>
         <div className="section-heading block-heading tab-title-row"><h2>会計管理</h2><div className="day-switch"><button className={day === 1 ? 'active' : ''} onClick={() => { setDay(1); setConfirm(null); }}>1日目</button><button className={day === 2 ? 'active' : ''} onClick={() => { setDay(2); setConfirm(null); }}>2日目</button></div></div>
-        <div className="summary-grid"><article><span>注文合計</span><strong>{yen(total)}</strong></article><article><span>注文人数</span><strong>{peopleCount}<small>人</small></strong></article><article><span>注文数</span><strong>{dayOrders.length}<small>品</small></strong></article></div>
-        <div className="section-heading"><div className="filters"><button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>全員</button><button className={filter === 'unpaid' ? 'on' : ''} onClick={() => setFilter('unpaid')}>未払い</button><button className={filter === 'paid' ? 'on' : ''} onClick={() => setFilter('paid')}>支払済</button></div></div>
+        <div className="summary-grid"><article><span>注文合計</span><strong>{yen(total)}</strong></article><article><span>注文人数</span><strong>{peopleCount}/{orderedPeople.length}<small>人</small></strong></article><article><span>注文数</span><strong>{dayOrders.length}<small>品</small></strong></article></div>
+        <div className="section-heading account-filter-row"><div className="filters"><button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>全員</button><button className={filter === 'unpaid' ? 'on' : ''} onClick={() => setFilter('unpaid')}>未払い</button><button className={filter === 'paid' ? 'on' : ''} onClick={() => setFilter('paid')}>支払済</button></div><div className="unpaid-summary"><strong>未払い {unpaidPeopleIds.length}名</strong><strong>{yen(unpaidAmount)}</strong></div></div>
         <div className="people-grid">{filteredPeople.map(person => {
           const mine = dayOrders.filter(o => o.participant_id === person.id);
           const subtotal = mine.reduce((sum, o) => sum + Number(o.amount || 0), 0);
