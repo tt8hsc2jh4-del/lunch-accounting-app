@@ -121,3 +121,11 @@
 /* Show the per-menu order count beside its price */
 .menu-order-count{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
 @media(max-width:700px){.menu-info{flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px}}
+
+
+/* Keep menu name on its own line; align price and order count together below it */
+.menu-info{display:grid;grid-template-columns:max-content max-content;grid-template-rows:auto auto;align-items:center;justify-content:start;column-gap:14px;row-gap:5px}
+.menu-info h3{grid-column:1/-1}
+.menu-info strong{grid-column:1}
+.menu-info .menu-order-count{grid-column:2}
+@media(max-width:700px){.menu-info{display:grid;grid-template-columns:max-content max-content;grid-template-rows:auto auto;align-items:center;gap:5px 10px}.menu-info h3{grid-column:1/-1}}
