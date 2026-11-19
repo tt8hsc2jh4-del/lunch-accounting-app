@@ -109,3 +109,5 @@
   .tab-title-row .day-switch{align-self:auto;width:auto}
   .tab-title-row .day-switch button{flex:0 0 auto;padding:8px 13px}
 }
+
+.account-filter-row{align-items:center;flex-direction:row}.unpaid-summary{display:flex;align-items:center;gap:16px;padding:7px 12px;border:1px solid #f0d8d8;background:#fff7f7;border-radius:9px;color:#a33b3b;font-size:12px;white-space:nowrap}.unpaid-summary strong{font-weight:800}@media(max-width:700px){.account-filter-row{flex-direction:row;align-items:center;gap:8px}.filters{flex-shrink:0}.filters button{padding:7px 9px}.unpaid-summary{margin-left:auto;gap:7px;padding:7px 8px;font-size:10px}}
