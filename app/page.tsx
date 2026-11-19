@@ -149,6 +149,7 @@ export default function Home() {
   }
 
   async function runBackup(action: 'save' | 'restore') {
+    setNewEventName('');
     if (!backupPassword || backupBusy) return;
     if (action === 'restore' && !window.confirm('最後に保存した内容で、現在のイベント一覧・全イベントの入力内容・登録名簿を置き換えます。よろしいですか？')) return;
     setBackupBusy(true);
@@ -383,26 +384,26 @@ export default function Home() {
               </div>)}
             </div>
             <div className="event-create-row">
-              <input value={newEventName} onChange={e => setNewEventName(e.target.value)} placeholder="新しいイベント名を入力" onKeyDown={e => { if (e.key === 'Enter') void addEvent(); }} />
+              <input type="text" name="event-name-new" autoComplete="off" value={newEventName} onChange={e => setNewEventName(e.target.value)} placeholder="新しいイベント名を入力" onKeyDown={e => { if (e.key === 'Enter') void addEvent(); }} />
               <button type="button" className="primary-button" disabled={!newEventName.trim()} onClick={() => void addEvent()}>新規イベントを追加</button>
             </div>
           </div>}
         </div>
-        <div className="backup-widget">
-          <button type="button" className="backup-trigger" aria-expanded={backupOpen} onClick={() => setBackupOpen(value => !value)}>BACKUP</button>
-          {backupOpen && <div className="backup-panel">
-            <strong>バックアップ</strong>
-            <p>イベント一覧・全イベントのメンバー／メニュー／注文／会計情報・登録名簿を一括保存します。</p>
-            <label htmlFor="backup-password">共通パスワード</label>
-            <input id="backup-password" type="password" autoComplete="current-password" value={backupPassword} onChange={event => setBackupPassword(event.target.value)} placeholder="パスワードを入力" onKeyDown={event => { if (event.key === 'Enter') void runBackup('save'); }} />
-            <div className="backup-actions">
-              <button type="button" className="primary-button" disabled={!backupPassword || backupBusy} onClick={() => void runBackup('save')}>{backupBusy ? '処理中…' : '保存'}</button>
-              <button type="button" className="backup-restore-button" disabled={!backupPassword || backupBusy} onClick={() => void runBackup('restore')}>読出</button>
-              <button type="button" className="backup-close-button" onClick={() => { setBackupOpen(false); setBackupPassword(''); }}>閉じる</button>
-            </div>
-            <small>読出を実行すると、現在のデータは最後の保存内容に置き換わります。</small>
-          </div>}
-        </div>
+      </div>
+      <div className="backup-widget">
+        <button type="button" className="backup-trigger" aria-expanded={backupOpen} onClick={() => setBackupOpen(value => !value)}>BACKUP</button>
+        {backupOpen && <div className="backup-panel">
+          <strong>バックアップ</strong>
+          <p>イベント一覧・全イベントのメンバー／メニュー／注文／会計情報・登録名簿を一括保存します。</p>
+          <label htmlFor="backup-password">共通パスワード</label>
+          <input id="backup-password" name="backup-password" type="password" autoComplete="new-password" value={backupPassword} onChange={event => setBackupPassword(event.target.value)} placeholder="パスワードを入力" onKeyDown={event => { if (event.key === 'Enter') void runBackup('save'); }} />
+          <div className="backup-actions">
+            <button type="button" className="primary-button" disabled={!backupPassword || backupBusy} onClick={() => void runBackup('save')}>{backupBusy ? '処理中…' : '保存'}</button>
+            <button type="button" className="backup-restore-button" disabled={!backupPassword || backupBusy} onClick={() => void runBackup('restore')}>読出</button>
+            <button type="button" className="backup-close-button" onClick={() => { setBackupOpen(false); setBackupPassword(''); }}>閉じる</button>
+          </div>
+          <small>読出を実行すると、現在のデータは最後の保存内容に置き換わります。</small>
+        </div>}
       </div>
     </header>
     <nav className="tabs"><button className={tab === 'account' ? 'selected' : ''} onClick={() => setTab('account')}>会計管理</button><button className={tab === 'members' ? 'selected' : ''} onClick={() => setTab('members')}>メンバー管理</button><button className={tab === 'menus' ? 'selected' : ''} onClick={() => setTab('menus')}>メニュー管理</button></nav>
