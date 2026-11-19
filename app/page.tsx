@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 type Person = { id: number; name: string };
 type Menu = { id: number; name: string; price: number; hidden: boolean | null; lunch_day: number };
 type Order = { id: number; participant_id: number; lunch_day: number; menu_id: number; amount: number; paid: boolean; locked_amount: number | null; cash: number | null };
+type Settlement = { participant_id: number; lunch_day: number; paid: boolean; cash: number | null };
 type Tab = 'account' | 'members' | 'menus';
 type Confirm = { kind: 'order' | 'person' | 'menu'; id: number } | null;
 const yen = (value: number) => new Intl.NumberFormat('ja-JP').format(value) + '円';
@@ -14,6 +15,8 @@ export default function Home() {
   const [people, setPeople] = useState<Person[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [cashDraft, setCashDraft] = useState<Record<string, string>>({});
   const [day, setDay] = useState(1);
   const [tab, setTab] = useState<Tab>('account');
   const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
@@ -34,11 +37,16 @@ export default function Home() {
     const [p, m, o] = await Promise.all([
       supabase.from('lunch_participants').select('id,name').order('id'),
       supabase.from('lunch_menus').select('id,name,price,hidden,lunch_day').order('id'),
-      supabase.from('lunch_orders').select('id,participant_id,lunch_day,menu_id,amount,paid,locked_amount,cash').order('id')
+      supabase.from('lunch_orders').select('id,participant_id,lunch_day,menu_id,amount,paid,locked_amount,cash').order('id'),
+      supabase.from('lunch_settlements').select('participant_id,lunch_day,paid,cash')
     ]);
-    const issue = p.error || m.error || o.error;
+    const issue = p.error || m.error || o.error || (arguments[0] as any)?.error;
     if (issue) setError(issue.message);
-    else { setPeople(p.data ?? []); setMenus(m.data ?? []); setOrders(o.data ?? []); setError(''); }
+    else {
+      setPeople(p.data ?? []); setMenus(m.data ?? []); setOrders(o.data ?? []); setSettlements((arguments[0] as any)?.data ?? []);
+      setCashDraft(prev => { const next = { ...prev }; for (const item of ((arguments[0] as any)?.data ?? []) as Settlement[]) { const key = `${item.participant_id}-${item.lunch_day}`; if (next[key] === undefined) next[key] = item.cash == null ? '' : String(item.cash); } return next; });
+      setError('');
+    }
     setLoading(false);
   }, []);
 
@@ -50,6 +58,7 @@ export default function Home() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_participants' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_menus' }, () => { void load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_orders' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lunch_settlements' }, () => { void load(); })
       .subscribe();
     return () => { void client.removeChannel(channel); };
   }, [load]);
@@ -58,10 +67,12 @@ export default function Home() {
   const dayOrders = useMemo(() => orders.filter(o => o.lunch_day === day), [orders, day]);
   const total = dayOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0);
   const peopleCount = new Set(dayOrders.map(o => o.participant_id)).size;
+  const getSettlement = (personId: number) => settlements.find(x => x.participant_id === personId && x.lunch_day === day);
   const filteredPeople = people.filter(person => {
     const mine = dayOrders.filter(o => o.participant_id === person.id);
-    if (filter === 'unpaid') return mine.some(o => !o.paid);
-    if (filter === 'paid') return mine.length > 0 && mine.every(o => o.paid);
+    const paid = !!getSettlement(person.id)?.paid;
+    if (filter === 'unpaid') return mine.length > 0 && !paid;
+    if (filter === 'paid') return mine.length > 0 && paid;
     return true;
   });
 
@@ -70,17 +81,29 @@ export default function Home() {
     const menu = visibleMenus.find(m => m.id === Number(newOrder[personId]));
     if (!menu) return;
     const { error: e } = await supabase.from('lunch_orders').insert({ participant_id: personId, lunch_day: day, menu_id: menu.id, amount: menu.price, paid: false });
-    if (e) setError(e.message); else { setNewOrder(v => ({ ...v, [personId]: '' })); await load(); }
+    if (e) setError(e.message); else {
+      await supabase.from('lunch_settlements').upsert({ participant_id: personId, lunch_day: day, paid: false }, { onConflict: 'participant_id,lunch_day' });
+      setNewOrder(v => ({ ...v, [personId]: '' })); await load();
+    }
   }
   async function deleteOrder(id: number) {
     if (!supabase) return;
     const { error: e } = await supabase.from('lunch_orders').delete().eq('id', id);
     if (e) setError(e.message); else { setConfirm(null); await load(); }
   }
-  async function togglePaid(order: Order) {
+  async function updateSettlement(personId: number, patch: Partial<Pick<Settlement, 'paid' | 'cash'>>) {
     if (!supabase) return;
-    const { error: e } = await supabase.from('lunch_orders').update({ paid: !order.paid }).eq('id', order.id);
+    const current = getSettlement(personId);
+    const { error: e } = await supabase.from('lunch_settlements').upsert({ participant_id: personId, lunch_day: day, paid: current?.paid ?? false, cash: current?.cash ?? null, ...patch }, { onConflict: 'participant_id,lunch_day' });
     if (e) setError(e.message); else await load();
+  }
+  async function saveCash(personId: number) {
+    const key = `${personId}-${day}`;
+    const raw = cashDraft[key] ?? '';
+    if (raw.trim() === '') { await updateSettlement(personId, { cash: null }); return; }
+    const amount = Number(raw);
+    if (!Number.isInteger(amount) || amount < 0) { setError('預り金は0以上の整数で入力してください。'); return; }
+    await updateSettlement(personId, { cash: amount });
   }
   async function addPerson() {
     const name = newPerson.trim();
@@ -142,10 +165,15 @@ export default function Home() {
               const menu = menus.find(m => m.id === order.menu_id);
               return <div className="order-item" key={order.id}>
                 <div className="order-line"><span>{menu?.name ?? '削除済みメニュー'}</span><strong>{yen(order.amount)}</strong></div>
-                <div className="order-controls"><label><input type="checkbox" checked={!!order.paid} onChange={() => void togglePaid(order)} />支払済</label><button className="text-danger" onClick={() => setConfirm({ kind: 'order', id: order.id })}>削除</button></div>
+                <div className="order-controls"><span className="muted">注文内容</span><button className="text-danger" onClick={() => setConfirm({ kind: 'order', id: order.id })}>削除</button></div>
                 {confirm?.kind === 'order' && confirm.id === order.id && <div className="inline-confirm">この注文を削除しますか？<div><button className="danger-button" onClick={() => void deleteOrder(order.id)}>削除する</button><button onClick={() => setConfirm(null)}>キャンセル</button></div></div>}
               </div>;
             })}</div>}
+            {mine.length > 0 && <div className="settlement-panel">
+              <label className="settlement-paid"><input type="checkbox" checked={!!getSettlement(person.id)?.paid} onChange={e => void updateSettlement(person.id, { paid: e.target.checked })} />この日の合計を支払済にする</label>
+              <div className="cash-entry"><label htmlFor={`cash-${person.id}-${day}`}>預り金</label><div><input id={`cash-${person.id}-${day}`} type="number" min="0" step="1" inputMode="numeric" placeholder="金額を入力" value={cashDraft[`${person.id}-${day}`] ?? (getSettlement(person.id)?.cash == null ? '' : String(getSettlement(person.id)!.cash))} onChange={e => setCashDraft(v => ({ ...v, [`${person.id}-${day}`]: e.target.value }))} onBlur={() => void saveCash(person.id)} /><span>円</span></div></div>
+              {getSettlement(person.id)?.cash != null && <p className={`cash-result ${Number(getSettlement(person.id)!.cash) >= subtotal ? 'change' : 'short'}`}>{Number(getSettlement(person.id)!.cash) >= subtotal ? `お釣り：${yen(Number(getSettlement(person.id)!.cash) - subtotal)}` : `不足金額：${yen(subtotal - Number(getSettlement(person.id)!.cash))}`}</p>}
+            </div>}
             <div className="add-order"><select aria-label={person.name + 'の注文を追加'} value={newOrder[person.id] || ''} onChange={e => setNewOrder(v => ({ ...v, [person.id]: e.target.value }))}><option value="">注文を追加</option>{visibleMenus.map(menu => <option key={menu.id} value={menu.id}>{menu.name}（{yen(menu.price)}）</option>)}</select><button className="primary-button" disabled={!newOrder[person.id]} onClick={() => void addOrder(person.id)}>追加</button></div>
           </article>;
         })}</div>
