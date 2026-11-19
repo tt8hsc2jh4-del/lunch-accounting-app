@@ -37,3 +37,10 @@
   .member-days{grid-template-columns:1fr 1fr}
   .member-card{padding:9px 11px}
 }
+
+/* Keep the paid toggle and deposit input on one compact row */
+.settlement-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap}
+.settlement-paid{white-space:nowrap}
+.cash-entry{margin-left:auto;gap:7px}
+.cash-entry input{width:115px}
+@media(max-width:380px){.settlement-row{gap:6px}.cash-entry{gap:5px}.cash-entry input{width:92px;padding:6px}}
