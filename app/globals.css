@@ -99,3 +99,13 @@
 .menu-order-footer button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:7px 13px;font-size:12px;font-weight:700}
 .menu-order-footer .primary-button{background:var(--blue);border-color:var(--blue);color:#fff}
 .menu-order-footer .primary-button:disabled{opacity:.45}
+
+
+/* Day selector belongs beside the heading on accounting and menu screens */
+.tab-title-row{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:16px;margin-bottom:18px}
+.tab-title-row .day-switch{flex-shrink:0}
+@media(max-width:700px){
+  .tab-title-row{align-items:center;flex-direction:row}
+  .tab-title-row .day-switch{align-self:auto;width:auto}
+  .tab-title-row .day-switch button{flex:0 0 auto;padding:8px 13px}
+}
