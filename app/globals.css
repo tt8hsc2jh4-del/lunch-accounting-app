@@ -76,3 +76,10 @@
 .member-picker-trigger>span{white-space:nowrap}
 .member-picker-count{margin-left:auto;flex-shrink:0}
 .member-picker-chevron{flex-shrink:0}
+
+
+/* Saved roster trigger uses the same blue treatment as the primary add button */
+.member-picker-trigger{background:var(--blue);border-color:var(--blue);color:#fff}
+.member-picker-trigger .member-picker-count,.member-picker-trigger .member-picker-chevron{color:#fff}
+.timed-alert{animation:alert-fade 2s ease-in-out both}
+@keyframes alert-fade{0%,82%{opacity:1}100%{opacity:0}}
