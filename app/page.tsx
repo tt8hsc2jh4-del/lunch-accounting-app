@@ -25,6 +25,7 @@ export default function Home() {
   const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [alert, setAlert] = useState('');
   const [newOrder, setNewOrder] = useState<Record<number, string>>({});
   const [newPerson, setNewPerson] = useState('');
   const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
@@ -56,6 +57,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!alert) return;
+    const timer = window.setTimeout(() => setAlert(''), 2000);
+    return () => window.clearTimeout(timer);
+  }, [alert]);
   useEffect(() => {
     const client = supabase;
     if (!client) return;
@@ -125,7 +131,7 @@ export default function Home() {
     const { error: de } = await supabase.from('lunch_member_directory').upsert({ name }, { onConflict: 'name' });
     if (de) { setError(de.message); return; }
     if (people.some(p => p.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      setNewPerson(''); setError('このメンバーは既に今回の一覧に登録されています。'); await load(); return;
+      setNewPerson(''); setAlert('このメンバーは既に今回の一覧に登録されています。'); await load(); return;
     }
     const { error: e } = await supabase.from('lunch_participants').insert({ name });
     if (e) setError(e.message); else { setNewPerson(''); setMemberDropdownOpen(false); await load(); }
@@ -137,6 +143,16 @@ export default function Home() {
   }
   async function deleteDirectoryMember(id: number) {
     if (!supabase) return;
+    const member = directory.find(item => item.id === id);
+    const active = member && people.find(person => person.name.toLocaleLowerCase() === member.name.toLocaleLowerCase());
+    if (active) {
+      const { error: oe } = await supabase.from('lunch_orders').delete().eq('participant_id', active.id);
+      if (oe) { setError(oe.message); return; }
+      const { error: se } = await supabase.from('lunch_settlements').delete().eq('participant_id', active.id);
+      if (se) { setError(se.message); return; }
+      const { error: pe } = await supabase.from('lunch_participants').delete().eq('id', active.id);
+      if (pe) { setError(pe.message); return; }
+    }
     const { error: e } = await supabase.from('lunch_member_directory').delete().eq('id', id);
     if (e) setError(e.message); else { setConfirm(null); await load(); }
   }
@@ -163,7 +179,7 @@ export default function Home() {
     const name = newMenuName.trim(), price = Number(newMenuPrice);
     if (!supabase || !name || newMenuPrice.trim() === '' || !Number.isFinite(price) || price < 0) return;
     const { error: e } = await supabase.from('lunch_menus').insert({ name, price, lunch_day: day, hidden: false });
-    if (e) setError(e.message); else { setNewMenuName(''); setNewMenuPrice(''); await load(); }
+    if (e) setAlert(e.code === '23505' ? 'このメニューは既に登録されています。' : 'メニューを追加できませんでした。入力内容をご確認ください。'); else { setNewMenuName(''); setNewMenuPrice(''); await load(); }
   }
   async function saveMenu(id: number) {
     const name = menuDraft.name.trim(), price = Number(menuDraft.price);
@@ -188,10 +204,11 @@ export default function Home() {
     </header>
     <nav className="tabs"><button className={tab === 'account' ? 'selected' : ''} onClick={() => setTab('account')}>会計管理</button><button className={tab === 'members' ? 'selected' : ''} onClick={() => setTab('members')}>メンバー管理</button><button className={tab === 'menus' ? 'selected' : ''} onClick={() => setTab('menus')}>メニュー管理</button></nav>
     {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError('')}>閉じる</button></div>}
+    {alert && <div className="error-banner timed-alert" role="status"><span>{alert}</span></div>}
     {loading ? <div className="loading">読み込み中…</div> : <>
       {tab === 'account' && <section>
         <div className="summary-grid"><article><span>注文合計</span><strong>{yen(total)}</strong></article><article><span>注文人数</span><strong>{peopleCount}<small>人</small></strong></article><article><span>注文数</span><strong>{dayOrders.length}<small>件</small></strong></article></div>
-        <div className="section-heading"><h2>メンバー別の注文</h2><div className="filters"><button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>全員</button><button className={filter === 'unpaid' ? 'on' : ''} onClick={() => setFilter('unpaid')}>未払い</button><button className={filter === 'paid' ? 'on' : ''} onClick={() => setFilter('paid')}>支払済</button></div></div>
+        <div className="section-heading"><div className="filters"><button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>全員</button><button className={filter === 'unpaid' ? 'on' : ''} onClick={() => setFilter('unpaid')}>未払い</button><button className={filter === 'paid' ? 'on' : ''} onClick={() => setFilter('paid')}>支払済</button></div></div>
         <div className="people-grid">{filteredPeople.map(person => {
           const mine = dayOrders.filter(o => o.participant_id === person.id);
           const subtotal = mine.reduce((sum, o) => sum + Number(o.amount || 0), 0);
