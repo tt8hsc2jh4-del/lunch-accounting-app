@@ -20,6 +20,8 @@ export default function Home() {
   const [eventDropdownOpen, setEventDropdownOpen] = useState(false);
   const [newEventName, setNewEventName] = useState('');
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventNameDraft, setEventNameDraft] = useState('');
   const [eventDeletePassword, setEventDeletePassword] = useState('');
   const [eventDeleteBusy, setEventDeleteBusy] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
@@ -109,6 +111,33 @@ export default function Home() {
       setDeletingEventId(null);
       setEventDeletePassword('');
       setAlert('イベントと関連データを削除しました。');
+    } catch {
+      setError('通信に失敗しました。時間をおいて再度お試しください。');
+    } finally {
+      setEventDeleteBusy(false);
+    }
+  }
+
+  async function saveEventName(item: EventItem) {
+    const name = eventNameDraft.trim();
+    if (!name || !eventDeletePassword || eventDeleteBusy) return;
+    setEventDeleteBusy(true);
+    try {
+      const response = await fetch('/api/events/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: item.id, name, password: eventDeletePassword })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(result.error || 'イベント名を変更できませんでした。');
+        return;
+      }
+      setEvents(current => current.map(event => event.id === item.id ? { ...event, name: result.event.name } : event));
+      setEditingEventId(null);
+      setEventNameDraft('');
+      setEventDeletePassword('');
+      setAlert('イベント名を変更しました。');
     } catch {
       setError('通信に失敗しました。時間をおいて再度お試しください。');
     } finally {
@@ -288,8 +317,17 @@ export default function Home() {
             <label>イベントを切り替え</label>
             <div className="event-list">
               {events.map(item => <div className={`event-list-item ${item.id === eventId ? 'current' : ''}`} key={item.id}>
-                <button type="button" className="event-name-button" onClick={() => { setLoading(true); setEventId(item.id); setConfirm(null); setDeletingEventId(null); setEventDeletePassword(''); setEventDropdownOpen(false); }}>{item.name}{item.id === eventId ? '（使用中）' : ''}</button>
-                <button type="button" className="text-danger event-delete-button" disabled={events.length <= 1} onClick={() => { setDeletingEventId(current => current === item.id ? null : item.id); setEventDeletePassword(''); }}>削除</button>
+                <button type="button" className="event-name-button" onClick={() => { setLoading(true); setEventId(item.id); setConfirm(null); setDeletingEventId(null); setEditingEventId(null); setEventDeletePassword(''); setEventDropdownOpen(false); }}>{item.name}{item.id === eventId ? '（使用中）' : ''}</button>
+                <div className="event-row-actions">
+                  <button type="button" className="event-edit-button" onClick={() => { setEditingEventId(current => current === item.id ? null : item.id); setDeletingEventId(null); setEventNameDraft(item.name); setEventDeletePassword(''); }}>編集</button>
+                  <button type="button" className="text-danger event-delete-button" disabled={events.length <= 1} onClick={() => { setDeletingEventId(current => current === item.id ? null : item.id); setEditingEventId(null); setEventDeletePassword(''); }}>削除</button>
+                </div>
+                {editingEventId === item.id && <div className="event-delete-confirm event-rename-confirm">
+                  <strong>イベント名を編集</strong>
+                  <input type="text" value={eventNameDraft} maxLength={100} onChange={e => setEventNameDraft(e.target.value)} placeholder="イベント名" />
+                  <input type="password" autoComplete="current-password" value={eventDeletePassword} onChange={e => setEventDeletePassword(e.target.value)} placeholder="共通パスワード" onKeyDown={e => { if (e.key === 'Enter') void saveEventName(item); }} />
+                  <div><button type="button" className="primary-button" disabled={!eventNameDraft.trim() || !eventDeletePassword || eventDeleteBusy} onClick={() => void saveEventName(item)}>{eventDeleteBusy ? '変更中…' : '変更'}</button><button type="button" onClick={() => { setEditingEventId(null); setEventNameDraft(''); setEventDeletePassword(''); }}>キャンセル</button></div>
+                </div>}
                 {deletingEventId === item.id && <div className="event-delete-confirm">
                   <strong>「{item.name}」を削除しますか？</strong>
                   <span>このイベントのメンバー・メニュー・注文・会計データもすべて削除されます。登録名簿は残ります。</span>
